@@ -24,6 +24,7 @@ pipeline {
                     aws --version
                     docker --version
                     git --version
+                    kubectl version --client
                 '''
             }
         }
@@ -63,11 +64,43 @@ pipeline {
                 '''
             }
         }
+
+        stage('Update Kubeconfig') {
+            steps {
+                echo 'Connecting Jenkins to EKS...'
+                sh '''
+                    aws eks update-kubeconfig --region ${AWS_REGION} --name Tech-Challenge-2-EKS-Cluster
+                '''
+            }
+        }
+
+        stage('Deploy to EKS') {
+            steps {
+                echo 'Deploying app to EKS...'
+                sh '''
+                    kubectl apply -f k8s/deployment.yaml
+                    kubectl apply -f k8s/service.yaml
+                    kubectl apply -f k8s/hpa.yaml
+                '''
+            }
+        }
+
+        stage('Check Kubernetes Resources') {
+            steps {
+                echo 'Checking deployment...'
+                sh '''
+                    kubectl get nodes
+                    kubectl get pods
+                    kubectl get svc
+                    kubectl get hpa
+                '''
+            }
+        }
     }
 
     post {
         success {
-            echo 'Pipeline finished successfully. Docker image pushed to ECR.'
+            echo 'Pipeline finished successfully. App deployed to EKS.'
         }
         failure {
             echo 'Pipeline failed. Check the logs.'
