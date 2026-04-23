@@ -17,3 +17,10 @@ spec:
           image: 113645088585.dkr.ecr.us-east-1.amazonaws.com/tech-challenge-2-hello-flask:latest
           ports:
             - containerPort: 5000
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
