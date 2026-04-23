@@ -189,3 +189,38 @@ resource "aws_eks_access_policy_association" "jenkins_cluster_admin" {
     aws_eks_access_entry.jenkins
   ]
 }
+########################################
+
+# ALLOW JENKINS TO TALK TO EKS API
+
+########################################
+
+# This opens port 443 from the Jenkins EC2 security group
+
+# to the EKS cluster security group so kubectl can reach the cluster.
+
+resource "aws_vpc_security_group_ingress_rule" "eks_api_from_jenkins" {
+
+  # EKS cluster security group
+
+  security_group_id = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
+
+  # Jenkins EC2 security group
+
+  referenced_security_group_id = aws_security_group.jenkins.id
+
+  # HTTPS
+
+  from_port = 443
+
+  to_port = 443
+
+  ip_protocol = "tcp"
+
+  tags = merge(local.common_tags, {
+
+    Name = "Tech Challenge 2 EKS API Access From Jenkins"
+
+  })
+
+}
