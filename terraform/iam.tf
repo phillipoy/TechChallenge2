@@ -1,4 +1,10 @@
 ########################################
+# AWS ACCOUNT INFO
+########################################
+
+data "aws_caller_identity" "current" {}
+
+########################################
 # EKS CLUSTER IAM ROLE
 ########################################
 
@@ -96,21 +102,29 @@ resource "aws_iam_role" "jenkins_role" {
   })
 }
 
+########################################
+# JENKINS EKS ACCESS
+########################################
+
 data "aws_iam_policy_document" "jenkins_eks_access" {
   statement {
-    sid    = "AllowDescribeEKS"
+    sid    = "AllowEKSAccess"
     effect = "Allow"
+
     actions = [
       "eks:DescribeCluster",
-      "eks:ListClusters"
+      "eks:ListClusters",
+      "eks:DescribeClusterVersions",
+      "eks:TagResource"
     ]
+
     resources = ["*"]
   }
 }
 
 resource "aws_iam_policy" "jenkins_eks_access" {
   name        = "tech-challenge-2-jenkins-eks-access-policy"
-  description = "Lets Jenkins discover EKS clusters for kubectl setup"
+  description = "Allows Jenkins to discover and connect to EKS"
   policy      = data.aws_iam_policy_document.jenkins_eks_access.json
 
   tags = merge(local.common_tags, {
@@ -123,10 +137,96 @@ resource "aws_iam_role_policy_attachment" "jenkins_eks_access" {
   policy_arn = aws_iam_policy.jenkins_eks_access.arn
 }
 
+########################################
+# JENKINS ECR ACCESS
+########################################
+
 resource "aws_iam_role_policy_attachment" "jenkins_ecr_poweruser" {
   role       = aws_iam_role.jenkins_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
 }
+
+########################################
+# JENKINS FULL EKS PERMISSIONS
+########################################
+
+resource "aws_iam_role_policy_attachment" "jenkins_eks_cluster_policy" {
+  role       = aws_iam_role.jenkins_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+}
+
+resource "aws_iam_role_policy_attachment" "jenkins_eks_service_policy" {
+  role       = aws_iam_role.jenkins_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSServicePolicy"
+}
+
+########################################
+# AWS LOAD BALANCER CONTROLLER POLICY
+########################################
+
+resource "aws_iam_policy" "aws_load_balancer_controller" {
+  name        = "AWSLoadBalancerControllerIAMPolicy"
+  description = "Permissions for AWS Load Balancer Controller to create ALBs"
+
+  policy = file("${path.module}/aws-load-balancer-controller-policy.json")
+
+  tags = merge(local.common_tags, {
+    Name = "Tech Challenge 2 ALB Controller IAM Policy"
+  })
+}
+
+########################################
+# AWS LOAD BALANCER CONTROLLER ROLE
+########################################
+
+locals {
+  oidc_provider_url = replace(aws_eks_cluster.main.identity[0].oidc[0].issuer, "https://", "")
+}
+
+data "aws_iam_policy_document" "aws_load_balancer_controller_assume_role" {
+  statement {
+    effect = "Allow"
+
+    principals {
+      type = "Federated"
+      identifiers = [
+        "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${local.oidc_provider_url}"
+      ]
+    }
+
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "${local.oidc_provider_url}:sub"
+      values   = ["system:serviceaccount:kube-system:aws-load-balancer-controller"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${local.oidc_provider_url}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "aws_load_balancer_controller" {
+  name               = "tech-challenge-2-alb-controller-role"
+  assume_role_policy = data.aws_iam_policy_document.aws_load_balancer_controller_assume_role.json
+
+  tags = merge(local.common_tags, {
+    Name = "Tech Challenge 2 ALB Controller Role"
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "aws_load_balancer_controller" {
+  role       = aws_iam_role.aws_load_balancer_controller.name
+  policy_arn = aws_iam_policy.aws_load_balancer_controller.arn
+}
+
+########################################
+# INSTANCE PROFILE FOR EC2
+########################################
 
 resource "aws_iam_instance_profile" "jenkins_profile" {
   name = "tech-challenge-2-jenkins-instance-profile"

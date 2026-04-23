@@ -7,13 +7,16 @@ pipeline {
         ECR_REPO       = 'tech-challenge-2-hello-flask'
         IMAGE_TAG      = 'latest'
         IMAGE_URI      = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
+        CLUSTER_NAME   = 'Tech-Challenge-2-EKS-Cluster'
     }
 
     stages {
+
         stage('Checkout Code') {
             steps {
-                echo 'Pulling code from GitHub...'
+                echo 'Pulling latest code from GitHub...'
                 checkout scm
+                sh 'ls -R'   // 👈 helps verify Jenkins is using repo files
             }
         }
 
@@ -42,14 +45,15 @@ pipeline {
             steps {
                 echo 'Logging into Amazon ECR...'
                 sh '''
-                    aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                    aws ecr get-login-password --region ${AWS_REGION} \
+                    | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
                 '''
             }
         }
 
         stage('Tag Docker Image') {
             steps {
-                echo 'Tagging Docker image for ECR...'
+                echo 'Tagging Docker image...'
                 sh '''
                     docker tag ${ECR_REPO}:${IMAGE_TAG} ${IMAGE_URI}
                 '''
@@ -67,16 +71,16 @@ pipeline {
 
         stage('Update Kubeconfig') {
             steps {
-                echo 'Connecting Jenkins to EKS...'
+                echo 'Connecting to EKS cluster...'
                 sh '''
-                    aws eks update-kubeconfig --region ${AWS_REGION} --name Tech-Challenge-2-EKS-Cluster
+                    aws eks update-kubeconfig --region ${AWS_REGION} --name ${CLUSTER_NAME}
                 '''
             }
         }
 
-        stage('Deploy to EKS') {
+        stage('Deploy to Kubernetes') {
             steps {
-                echo 'Deploying app to EKS...'
+                echo 'Deploying application (Deployment + Service + HPA)...'
                 sh '''
                     kubectl apply -f k8s/deployment.yaml
                     kubectl apply -f k8s/service.yaml
@@ -85,14 +89,24 @@ pipeline {
             }
         }
 
-        stage('Check Kubernetes Resources') {
+        stage('Deploy Ingress (ALB)') {
             steps {
-                echo 'Checking deployment...'
+                echo 'Creating ALB via Ingress...'
+                sh '''
+                    kubectl apply -f k8s/ingress.yaml
+                '''
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                echo 'Checking Kubernetes resources...'
                 sh '''
                     kubectl get nodes
                     kubectl get pods
                     kubectl get svc
                     kubectl get hpa
+                    kubectl get ingress
                 '''
             }
         }
@@ -100,10 +114,10 @@ pipeline {
 
     post {
         success {
-            echo 'Pipeline finished successfully. App deployed to EKS.'
+            echo 'Pipeline finished successfully. App deployed and exposed via ALB.'
         }
         failure {
-            echo 'Pipeline failed. Check the logs.'
+            echo 'Pipeline failed. Check logs for errors.'
         }
     }
 }
