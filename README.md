@@ -1,4 +1,4 @@
-# Tech Challenge 2 – Jenkins CI/CD on AWS EKS
+# Tech Challenge 2 – Jenkins CI/CD Pipeline on AWS EKS
 
 ## Overview
 
