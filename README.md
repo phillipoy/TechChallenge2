@@ -1,29 +1,26 @@
-# Tech Challenge 2 – CI/CD + GitOps on AWS EKS
+# Tech Challenge 2 – GitOps Deployment (GitHub Actions + Argo CD)
 
 ## Overview
 
-This project implements a complete cloud-native deployment pipeline using:
+This branch implements a modern GitOps-based deployment pipeline using:
 
+- GitHub Actions (CI)
+- Amazon ECR (image storage)
 - AWS EKS (Kubernetes)
-- Docker + Amazon ECR
-- Jenkins (CI/CD)
-- GitHub Actions (CI alternative)
-- Argo CD (GitOps)
+- Argo CD (GitOps deployment)
 - Helm (Kubernetes packaging)
 - AWS ALB Ingress Controller
 
-It demonstrates both:
-- Traditional CI/CD (Jenkins)
-- Modern GitOps (GitHub Actions + Argo CD)
+This setup replaces traditional CI/CD deployment with a Git-driven model.
+
+> This branch uses GitOps (GitHub Actions + Argo CD).  
+> See the `main` branch for the Jenkins-based CI/CD implementation.
 
 ---
 
 ## Architecture
 
-GitHub → CI  
-- Jenkins → Build → Push → Deploy (kubectl)  
-- GitHub Actions → Build → Push → ECR  
-
+GitHub → GitHub Actions → Build Docker Image → Push to ECR  
 GitHub (gitops branch) → Argo CD → Helm → EKS  
 
 User → ALB → Ingress → Service → Pods  
@@ -45,135 +42,140 @@ User → ALB → Ingress → Service → Pods
 │           ├── service.yaml
 │           ├── hpa.yaml
 │           └── ingress.yaml
-├── k8s/
-├── terraform/
 ├── Dockerfile
-├── Jenkinsfile
+├── README.md
 
 ---
 
-## Branch Strategy
+## GitHub Actions (CI)
 
-- main → Jenkins pipeline  
-- gitops → GitHub Actions + Argo CD  
+Triggered on push to the `gitops` branch.
 
----
+Responsibilities:
+- Build Docker image
+- Push image to Amazon ECR
 
-## Jenkins CI/CD Pipeline
-
-Handles:
-- Pulling code from GitHub  
-- Building Docker image  
-- Pushing to ECR  
-- Deploying to EKS using kubectl  
-
----
-
-## GitHub Actions CI
-
-Triggered on push to gitops branch.
-
-Performs:
-- Build Docker image  
-- Push to ECR  
-
-### Required Secrets
+### Required GitHub Secrets
 
 AWS_ACCESS_KEY_ID  
 AWS_SECRET_ACCESS_KEY  
+
+These credentials allow GitHub Actions to authenticate with AWS and push images to ECR.
 
 ---
 
 ## GitOps with Argo CD
 
-Argo CD:
-- Watches gitops branch  
-- Deploys Helm chart from helm/tech-challenge-2  
-- Automatically syncs changes  
+Argo CD continuously monitors the GitHub repository and deploys changes automatically.
 
-### Sync Settings
+### Configuration
 
-- Auto Sync enabled  
-- Prune enabled  
-- Self Heal enabled  
+- Repository: This repo (`gitops` branch)
+- Path: `helm/tech-challenge-2`
+- Sync Policy:
+  - Auto Sync enabled
+  - Prune enabled
+  - Self Heal enabled
+
+### What Argo CD Does
+
+- Pulls Helm chart from GitHub
+- Deploys application to EKS
+- Keeps cluster state in sync with Git
 
 ---
 
 ## Helm Chart
 
-Used to package Kubernetes resources.
+Helm is used to package Kubernetes resources.
 
-- Chart.yaml → metadata  
-- values.yaml → configuration  
-- templates → Kubernetes manifests  
+### Key Files
+
+- Chart.yaml → chart metadata
+- values.yaml → configurable values
+- templates/ → Kubernetes manifests
+
+### Components Deployed
+
+- Deployment
+- Service
+- Horizontal Pod Autoscaler (HPA)
+- Ingress (ALB)
 
 ---
 
 ## Scaling (HPA)
 
-- Min replicas: 1  
-- Max replicas: 12  
-- CPU target: 50%  
+- Min replicas: 1
+- Max replicas: 12
+- CPU target: 50%
+
+Kubernetes automatically scales pods based on CPU usage.
 
 ---
 
 ## Load Testing
 
+Example using Siege:
+
 siege -c 250 -t 2M http://<ALB-DNS>
+
+This simulates traffic and triggers auto-scaling.
 
 ---
 
 ## Accessing the Application
 
+Get ALB URL:
+
 kubectl get ingress  
 
-Open in browser:  
+Open in browser:
+
 http://<ALB-DNS>
 
 ---
 
 ## Accessing Argo CD
 
+Port forward from EC2:
+
 ssh -i <key>.pem -L 8081:localhost:8081 ubuntu@<EC2-IP>  
 
-Open:  
+Open:
+
 https://localhost:8081  
 
-Login:  
-Username: admin  
+Login:
+- Username: admin  
+- Password:
 
-Get password:  
 kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | base64 -d  
-
----
-
-## Terraform
-
-Terraform provisions:
-- EKS cluster  
-- Node groups  
-- IAM roles  
-- Networking  
 
 ---
 
 ## Key Concepts
 
-- CI/CD vs GitOps  
-- Kubernetes deployments and services  
-- Helm templating  
-- AWS IAM best practices  
-- Auto-scaling with HPA  
-- ALB Ingress for public access  
+- GitOps deployment model
+- CI with GitHub Actions
+- Continuous delivery with Argo CD
+- Helm templating for Kubernetes
+- Auto-scaling with HPA
+- Secure AWS access using IAM
+- ALB Ingress for public access
 
 ---
 
 ## Summary
 
-This project demonstrates a fully automated, production-style deployment pipeline using both CI/CD and GitOps on AWS.
+This project demonstrates a fully automated GitOps pipeline where:
+
+- Code changes trigger image builds
+- Argo CD automatically deploys updates
+- Kubernetes maintains the desired state
 
 ---
 
 ## One Line Summary
 
-End-to-end Kubernetes deployment using Jenkins, GitHub Actions, and Argo CD on AWS EKS.
+End-to-end GitOps deployment using GitHub Actions, Argo CD, and Kubernetes on AWS EKS.
