@@ -1,4 +1,4 @@
-# Tech Challenge 2 – GitOps Deployment (GitHub Actions + Argo CD)
+# Tech Challenge 2 – GitOps Pipeline on AWS EKS (Argo CD + GitHub Actions)
 
 ## Overview
 
