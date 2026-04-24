@@ -1,4 +1,4 @@
-replicaCount: 3
+replicaCount: 1
 
 image:
   repository: 113645088585.dkr.ecr.us-east-1.amazonaws.com/tech-challenge-2-hello-flask
